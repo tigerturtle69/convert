@@ -1,36 +1,56 @@
-# This is a basic workflow to help you get started with Actions
-
-name: CI
-
-# Controls when the workflow will run
+name: build-cia
 on:
-  # Triggers the workflow on push or pull request events but only for the "main" branch
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
-
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
+  push:
+    tags: ["v*"]
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+permissions:
+  contents: write
+
 jobs:
-  # This workflow contains a single job called "build"
   build:
-    # The type of runner that the job will run on
     runs-on: ubuntu-latest
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
+    container: devkitpro/devkitarm
+    env:
+      TAG: latest
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v4
-
-      # Runs a single command using the runners shell
-      - name: Run a one-line script
-        run: echo Hello, world!
-
-      # Runs a set of commands using the runners shell
-      - name: Run a multi-line script
+      - name: Tools
         run: |
-          echo Add other actions to build,
-          echo test, and deploy your project.
+          apt-get update
+          apt-get install -y git curl zip build-essential python3 python3-pil python3-qrcode nodejs npm
+          dkp-pacman -Syu --noconfirm 3ds-dev
+
+      - uses: actions/checkout@v5
+
+      - name: NumPlay source (GPL-3.0)
+        run: git clone --depth 1 https://github.com/Mason363/NumPlay NumPlay-main
+
+      - name: makerom
+        run: |
+          git clone --depth 1 https://github.com/3DSGuy/Project_CTR
+          make -C Project_CTR/makerom deps -j4
+          make -C Project_CTR/makerom -j4
+          cp Project_CTR/makerom/bin/makerom /usr/local/bin/
+
+      - name: bannertool
+        run: |
+          git clone --depth 1 --recursive https://github.com/diasurgical/bannertool
+          make -C bannertool -j4
+          cp bannertool/output/linux-x86_64/bannertool /usr/local/bin/
+
+      - name: Build (3dsx + cia, NumPlay and Hollow Knight)
+        run: make NUMPLAY=NumPlay-main all hk
+
+      - name: QR codes for the install links
+        run: |
+          B="https://github.com/${{ github.repository }}/releases/download/${TAG}"
+          mkdir -p dist
+          cp build/3ds/numplay.cia build/3ds/numplay.3dsx build/hk3ds/hollowknight.cia build/hk3ds/hollowknight.3dsx dist/
+          python3 tools/make_qr.py "$B/numplay.cia" dist/numplay-qr.png
+          python3 tools/make_qr.py "$B/hollowknight.cia" dist/hollowknight-qr.png
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: Latest build
+          files: dist/*

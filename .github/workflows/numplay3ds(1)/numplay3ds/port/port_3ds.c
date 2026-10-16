@@ -139,11 +139,12 @@ void port_sleep_ms(uint32_t ms) {
 void port_present(const uint16_t *fb, int x, int y, int w, int h) {
   ensure_init();
   u16 fw, fh;
-  /* The 3DS frame buffer is rotated: it is stored column by column, bottom pixel first. For a 16 bit format
-   * the pixel (x, y) of the upright 320x240 image is at fbuf[(x + X_OFFSET) * fh + (fh - 1 - y)] where fh = 240. */
+  /* gfxGetFramebuffer reports the frame buffer as it is stored: 240 wide, 320 tall (bottom) or 400 tall (top).
+   * It is rotated: stored column by column, each column 240 pixels long, bottom pixel first. So the pixel (x, y)
+   * of our upright 320x240 image is at fbuf[(x + X_OFFSET) * 240 + (239 - y)]. (240 is fw, not fh.) */
   u16 *fbuf = (u16 *)gfxGetFramebuffer(GAME_SCREEN, GFX_LEFT, &fw, &fh);
   for (int cx = x; cx < x + w; cx++) {
-    u16 *col = fbuf + (size_t)(cx + X_OFFSET) * fh + (fh - 1);
+    u16 *col = fbuf + (size_t)(cx + X_OFFSET) * fw + (fw - 1);
     const uint16_t *src = fb + y * NP_W + cx;
     for (int cy = y; cy < y + h; cy++, src += NP_W) col[-cy] = *src;
   }

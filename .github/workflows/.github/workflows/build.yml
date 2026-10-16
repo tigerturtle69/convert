@@ -1,0 +1,56 @@
+name: build-cia
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: devkitpro/devkitarm
+    env:
+      TAG: latest
+    steps:
+      - name: Tools
+        run: |
+          apt-get update
+          apt-get install -y git curl zip build-essential python3 python3-pil python3-qrcode nodejs npm
+          dkp-pacman -Syu --noconfirm 3ds-dev
+
+      - uses: actions/checkout@v5
+
+      - name: NumPlay source (GPL-3.0)
+        run: git clone --depth 1 https://github.com/Mason363/NumPlay NumPlay-main
+
+      - name: makerom
+        run: |
+          git clone --depth 1 https://github.com/3DSGuy/Project_CTR
+          make -C Project_CTR/makerom deps -j4
+          make -C Project_CTR/makerom -j4
+          cp Project_CTR/makerom/bin/makerom /usr/local/bin/
+
+      - name: bannertool
+        run: |
+          git clone --depth 1 --recursive https://github.com/diasurgical/bannertool
+          make -C bannertool -j4
+          cp bannertool/output/linux-x86_64/bannertool /usr/local/bin/
+
+      - name: Build (3dsx + cia, NumPlay and Hollow Knight)
+        run: make NUMPLAY=NumPlay-main all hk
+
+      - name: QR codes for the install links
+        run: |
+          B="https://github.com/${{ github.repository }}/releases/download/${TAG}"
+          mkdir -p dist
+          cp build/3ds/numplay.cia build/3ds/numplay.3dsx build/hk3ds/hollowknight.cia build/hk3ds/hollowknight.3dsx dist/
+          python3 tools/make_qr.py "$B/numplay.cia" dist/numplay-qr.png
+          python3 tools/make_qr.py "$B/hollowknight.cia" dist/hollowknight-qr.png
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: Latest build
+          files: dist/*

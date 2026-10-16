@@ -36,6 +36,20 @@ jobs:
       - name: NumPlay source (GPL-3.0)
         run: git clone --depth 1 https://github.com/Mason363/NumPlay NumPlay-main
 
+      - name: Find the project folder
+        run: |
+          pwd
+          ls -la
+          F=$(find . -path ./NumPlay-main -prune -o -name build_native.py -print | head -1)
+          if [ -z "$F" ]; then
+            echo "tools/build_native.py not found - did the upload include the tools folder?"
+            exit 1
+          fi
+          ROOT=$(cd "$(dirname "$F")/.." && pwd)
+          echo "project folder: $ROOT"
+          ls "$ROOT"
+          echo "ROOT=$ROOT" >> "$GITHUB_ENV"
+
       - name: makerom
         run: |
           git clone --depth 1 https://github.com/3DSGuy/Project_CTR
@@ -50,15 +64,18 @@ jobs:
           cp bannertool/output/linux-x86_64/bannertool /usr/local/bin/
 
       - name: Build (3dsx + cia, NumPlay and Hollow Knight)
-        run: make NUMPLAY=NumPlay-main all hk
+        run: |
+          cd "$ROOT"
+          make NUMPLAY="$GITHUB_WORKSPACE/NumPlay-main" all hk
 
       - name: QR codes for the install links
         run: |
+          cd "$ROOT"
           B="https://github.com/${{ github.repository }}/releases/download/${TAG}"
-          mkdir -p dist
-          cp build/3ds/numplay.cia build/3ds/numplay.3dsx build/hk3ds/hollowknight.cia build/hk3ds/hollowknight.3dsx dist/
-          python3 tools/make_qr.py "$B/numplay.cia" dist/numplay-qr.png
-          python3 tools/make_qr.py "$B/hollowknight.cia" dist/hollowknight-qr.png
+          mkdir -p "$GITHUB_WORKSPACE/dist"
+          cp build/3ds/numplay.cia build/3ds/numplay.3dsx build/hk3ds/hollowknight.cia build/hk3ds/hollowknight.3dsx "$GITHUB_WORKSPACE/dist/"
+          python3 tools/make_qr.py "$B/numplay.cia" "$GITHUB_WORKSPACE/dist/numplay-qr.png"
+          python3 tools/make_qr.py "$B/hollowknight.cia" "$GITHUB_WORKSPACE/dist/hollowknight-qr.png"
 
       - uses: softprops/action-gh-release@v2
         with:

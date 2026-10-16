@@ -18,7 +18,18 @@ jobs:
         run: |
           apt-get update
           apt-get install -y git curl zip build-essential python3 python3-pil python3-qrcode nodejs npm
-          dkp-pacman -Syu --noconfirm 3ds-dev
+          echo "--- what the image already has ---"
+          ls /opt/devkitpro/libctru/lib/ 2>&1 | head
+          which 3dsxtool smdhtool 2>&1
+          if [ ! -f /opt/devkitpro/libctru/lib/libctru.a ] || ! which 3dsxtool smdhtool >/dev/null; then
+            for i in 1 2 3 4; do
+              dkp-pacman -Sy --noconfirm 3ds-dev && break
+              echo "devkitPro server refused, retrying in 30s"
+              sleep 30
+            done
+          fi
+          test -f /opt/devkitpro/libctru/lib/libctru.a
+          which 3dsxtool smdhtool
 
       - uses: actions/checkout@v5
 

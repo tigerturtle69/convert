@@ -63,22 +63,26 @@ jobs:
           make -C bannertool -j4
           cp bannertool/output/linux-x86_64/bannertool /usr/local/bin/
 
-      - name: Build (3dsx + cia, NumPlay and Hollow Knight)
+      - name: Build (NumPlay + Hollow Knight, Celeste, Champion Island, Final Earth 2, NumPowder)
         run: |
           cd "$ROOT"
-          make NUMPLAY="$GITHUB_WORKSPACE/NumPlay-main" all hk
+          make -k NUMPLAY="$GITHUB_WORKSPACE/NumPlay-main" all || echo "BUILD_FAILED=1" >> "$GITHUB_ENV"
 
-      - name: QR codes for the install links
+      - name: Gather the files and make a QR code for each
         run: |
           cd "$ROOT"
-          B="https://github.com/${{ github.repository }}/releases/download/${TAG}"
-          mkdir -p "$GITHUB_WORKSPACE/dist"
-          cp build/3ds/numplay.cia build/3ds/numplay.3dsx build/hk3ds/hollowknight.cia build/hk3ds/hollowknight.3dsx "$GITHUB_WORKSPACE/dist/"
-          python3 tools/make_qr.py "$B/numplay.cia" "$GITHUB_WORKSPACE/dist/numplay-qr.png"
-          python3 tools/make_qr.py "$B/hollowknight.cia" "$GITHUB_WORKSPACE/dist/hollowknight-qr.png"
+          make dist DIST="$GITHUB_WORKSPACE/dist" BASE_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}"
+          ls -la "$GITHUB_WORKSPACE/dist"
 
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG }}
           name: Latest build
           files: dist/*
+
+      - name: Report a failed build
+        run: |
+          if [ -n "$BUILD_FAILED" ]; then
+            echo "Some apps did not build (the others were published). Open the Build step above and look for the first error."
+            exit 1
+          fi
